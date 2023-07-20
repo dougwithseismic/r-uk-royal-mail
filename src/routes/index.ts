@@ -1,9 +1,14 @@
-// routes/index.ts
-import express from 'express'
-import helloWorldRoutes from './hello-world'
+// routes/collectRoutes.ts
+import logger from '../middleware/logger'
+import express, { Router } from 'express'
+import fs from 'fs'
+import path from 'path'
 
-const router = express.Router()
+import getScriptRoutes from './api/get-script.routes'
 
-router.use('/api', [helloWorldRoutes])
+const router = Router()
+
+logger.info('Loading routes...')
+router.use('/api/v1', [getScriptRoutes])
 
 export default router

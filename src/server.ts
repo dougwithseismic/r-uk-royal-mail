@@ -9,10 +9,9 @@ import middleware from './middleware'
 import routes from './routes'
 import swaggerDocs from './swagger'
 
-import queues from './jobs' // Start Jobs
 
 const app = express()
-const port = 3000
+const port = 5678
 
 app.use(middleware)
 app.use(routes)
@@ -34,11 +33,6 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 app.listen(port, async () => {
     console.log(`Express server listening on port ${port}`)
 
-    Object.values(queues).forEach((queue) => {
-        queue.on('progress', (job) => {
-            console.log(`Job with id ${job.id} is in progress`)
-        })
-    })
 
     try {
     } catch (error) {
