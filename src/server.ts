@@ -11,7 +11,7 @@ import swaggerDocs from './swagger'
 
 
 const app = express()
-const port = 5678
+const port = process.env.PORT || 5678
 
 app.use(middleware)
 app.use(routes)
