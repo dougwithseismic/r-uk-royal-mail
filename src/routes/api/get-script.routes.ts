@@ -5,7 +5,8 @@ import fetch from 'node-fetch' // Import node-fetch
 
 const router = Router()
 const SCRIPT_PATH = path.resolve(__dirname, '..', '..', 'userscripts', 'main.ts')
-const SCRIPT_URL = `https://github.com/roshyrowe/UKplace/raw/main/userscript.user.js`
+// const SCRIPT_URL = `https://github.com/roshyrowe/UKplace/raw/main/userscript.user.js`
+const SCRIPT_URL = `https://i.g3v.co.uk/place/placeuk.user.js`
 
 // router.get('/get-script', async (req, res) => {
 //     try {
