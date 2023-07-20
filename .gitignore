@@ -37,7 +37,3 @@ yarn.lock
 # Swagger files
 *.swagger.json
 
-# Typescript files
-*.js
-*.js.map
-.vercel
