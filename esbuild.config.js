@@ -6,9 +6,9 @@ esbuild
         entryPoints: ['src/server.ts'],
         bundle: true,
         platform: 'node',
-        target: ['node16'],
         outbase: 'src',  // base directory
         outdir: 'dist',  // output directory
+        
     })
     .then(() => {
         // Build the user scripts for the browser

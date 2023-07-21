@@ -4,9 +4,11 @@
     "main": "index.js",
     "license": "MIT",
     "scripts": {
-        "start": "node dist/server.js",
-        "build": "node src/build.js",
-        "dev": "nodemon src/server.ts",
+        "build": "node esbuild.config.js",
+        "start:server": "node dist/server.js",
+        "dev:build": "nodemon --watch src --exec npm run build",
+        "dev:server": "nodemon dist/server.js",
+        "dev": "concurrently \"npm run dev:build\" \"npm run dev:server\"",
         "format": "prettier --write \"src/**/*.ts\""
     },
     "devDependencies": {
@@ -24,17 +26,20 @@
         "typescript": "^4.9.5"
     },
     "dependencies": {
+        "@types/ws": "^8.5.5",
         "axios": "^1.4.0",
         "body-parser": "^1.20.1",
         "bullmq": "^3.15.6",
+        "concurrently": "^8.2.0",
         "cors": "^2.8.5",
         "dotenv": "^16.1.4",
         "esbuild": "^0.18.15",
         "express-rate-limit": "^6.7.0",
         "helmet": "^6.0.1",
-        "node-fetch": "^3.3.1",
+        "node-fetch": "^2.6.12",
         "swagger-jsdoc": "^6.2.8",
         "swagger-ui-express": "^4.6.1",
-        "winston": "^3.8.2"
+        "winston": "^3.8.2",
+        "ws": "^8.13.0"
     }
 }
