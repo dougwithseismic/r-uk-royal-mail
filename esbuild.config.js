@@ -1,5 +1,18 @@
 const esbuild = require('esbuild')
 
+const bannerComment = `
+// ==UserScript==
+// @name       r/place UK-O-Matic
+// @namespace  r/place UK Nerds
+// @version    0.1
+// @description  Connects to a WebSocket server on localhost
+// @match      https://www.reddit.com/r/place/*
+// @match      https://new.reddit.com/r/place/*
+// @grant      GM_addStyle
+// @grant      GM_xmlhttpRequest
+// @run-at     document-end
+// ==/UserScript==`
+
 // Build the main application for Node.js
 esbuild
     .build({
@@ -17,7 +30,10 @@ esbuild
             platform: 'browser',
             target: ['es2020'],
             outbase: 'src',
-            outdir: 'dist',
+            outfile: './userscript.build.js',
+            banner: {
+                js: bannerComment,
+            },
         })
     })
     .then(() => {
