@@ -46,6 +46,14 @@ type SetPixelRequestBody = {
 
 type Fetcher = (url: string, options: RequestInit) => Promise<Response>
 
+/**
+ * Creates a Reddit API client for interacting with Reddit's GraphQL API.
+ *
+ * @param {string} token - The Bearer Token for authentication.
+ * @param {Fetcher} [fetcher=fetch] - (Optional) A custom fetch function. Defaults to global fetch.
+ * @returns {Object} - An API client object with methods to interact with the Reddit API.
+ */
+
 export const createRedditAPI = (token: string, fetcher: Fetcher = fetch) => {
     const BASE_URL = 'https://gql-realtime-2.reddit.com'
     const HEADERS = {
@@ -54,6 +62,13 @@ export const createRedditAPI = (token: string, fetcher: Fetcher = fetch) => {
         'content-type': 'application/json',
         Referer: 'https://garlic-bread.reddit.com/',
     }
+
+    /**
+     * Fetches the history of a pixel.
+     *
+     * @param {PixelHistoryOptions} [options={}] - (Optional) Configuration options.
+     * @returns {Promise<PixelHistoryResponse>} - A promise that resolves to the pixel history response.
+     */
 
     const getPixelHistory = async (
         options: PixelHistoryOptions = {}
@@ -84,6 +99,14 @@ export const createRedditAPI = (token: string, fetcher: Fetcher = fetch) => {
 
         return await response.json()
     }
+    /**
+     * Sets a pixel's color at a specific coordinate.
+     *
+     * @param {number} x - The x-coordinate of the pixel.
+     * @param {number} y - The y-coordinate of the pixel.
+     * @param {number} colorIndex - The color index to set.
+     * @returns {Promise<Response>} - A promise that resolves to the set pixel response.
+     */
 
     const setPixel = async (x: number, y: number, colorIndex: number): Promise<Response> => {
         const requestBody: SetPixelRequestBody = {
@@ -112,15 +135,38 @@ export const createRedditAPI = (token: string, fetcher: Fetcher = fetch) => {
     return { getPixelHistory, setPixel }
 }
 
-// // Example usage:
-// const api = createRedditAPI('YOUR_BEARER_TOKEN')
-// api.getPixelHistory().then(console.log).catch(console.error)
-
-// // Usage
-// setPixel(325, 844, 13)
-//     .then((response) => {
-//         // Handle the response here
-//     })
-//     .catch((error) => {
-//         console.error('Error setting pixel:', error)
-//     })
+/**
+ * EXAMPLE USAGE:
+ *
+ * 1. First, ensure you have an authentication token from Reddit. This might be obtained
+ *    from the Reddit OAuth2 flow or other authentication methods provided by Reddit.
+ *    Store this token securely.
+ *
+ *    const myRedditToken = 'YOUR_BEARER_TOKEN_HERE';
+ *
+ * 2. Create the Reddit API client:
+ *
+ *    const redditAPI = createRedditAPI(myRedditToken);
+ *
+ * 3. Use the API client to interact with the Reddit API.
+ *
+ *    // Fetching the history of a pixel at (10, 20) with a specific color index:
+ *    redditAPI.getPixelHistory({ coordinate: { x: 10, y: 20 }, colorIndex: 3 })
+ *      .then(response => {
+ *          console.log('Pixel History:', response);
+ *      })
+ *      .catch(error => {
+ *          console.error('Error fetching pixel history:', error);
+ *      });
+ *
+ *    // Setting a pixel color at coordinates (15, 25) with color index 5:
+ *    redditAPI.setPixel(15, 25, 5)
+ *      .then(response => {
+ *          console.log('Pixel set successfully:', response);
+ *      })
+ *      .catch(error => {
+ *          console.error('Error setting pixel:', error);
+ *      });
+ *
+ * 4. Always handle potential errors when calling these API methods, as demonstrated in the examples above.
+ */
