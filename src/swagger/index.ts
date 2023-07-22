@@ -6,7 +6,7 @@ const swaggerOptions = {
         components: {},
         servers: [
             {
-                url: 'https://localhost:3000/',
+                url: 'https://localhost:5678/',
                 description: 'Main Endpoint',
             },
         ],
@@ -16,6 +16,9 @@ const swaggerOptions = {
             version: '1.0.0',
             contact: {
                 name: 'doug@withseismic.com',
+                url: 'https://x.withseismic.com',
+                github:'https://github.com/dougwithseismic'
+
             },
 
         },
