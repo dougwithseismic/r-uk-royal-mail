@@ -45,6 +45,7 @@ export function setupWebSocket(server: http.Server) {
     const wss = new WebSocketServer({ server })
     logger.info('WebSocket server created')
 
+
     wss.on('connection', (ws) => {
         const client: Client = {
             ws,

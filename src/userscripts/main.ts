@@ -20,6 +20,10 @@ interface Client {
     api: RedditAPI | null
     version: string | null
     initialized: boolean
+    isConnected: boolean
+    actions: {
+        isCooldown: boolean
+    }
 }
 
 interface MessageData {
@@ -73,6 +77,10 @@ declare const Toastify: {
         api: null,
         version: null,
         initialized: false,
+        isConnected: false,
+        actions: {
+            isCooldown: false,
+        },
     }
 
     loadStyles('https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css')
@@ -179,6 +187,14 @@ declare const Toastify: {
         }
     }
 
+    async function requestPixel(): Promise<any> {
+        if (getConnectionStatus(client.ws) !== 'Open') {
+            return
+        }
+
+        client.ws.send(JSON.stringify({ action: 'requestPixel' }))
+    }
+
     function setupEventListeners(ws: WebSocket): void {
         ws.onopen = onOpen
         ws.onmessage = onMessage
@@ -187,6 +203,7 @@ declare const Toastify: {
     }
     async function onOpen(): Promise<void> {
         console.log('Connected to the WebSocket server')
+        client.isConnected = true
         Toastify({
             text: 'Connected to r/place UK Bot! \u2615',
             duration: 3e3,
@@ -210,16 +227,16 @@ declare const Toastify: {
         }
 
         // HERE IS WHERE WE CAN START DOING OUR STUFF!
+        await requestPixel()
+        // const setPixel = await client.api.setPixel(282, 836, 1)
 
-        const setPixel = await client.api.setPixel(282, 836, 1)
-        console.log('setPixel :>> ', setPixel)
-
-        const pixelHistory = await client.api.getPixelHistory({
-            coordinate: { x: 282, y: 836 },
-        })
+        // const pixelHistory = await client.api.getPixelHistory({
+        //     coordinate: { x: 282, y: 836 },
+        // })
 
         // Whilst the WebSocket is open, find out the latest status  request pixels from the server and draw them on the canvas.
     }
+
     function onMessage(event: MessageEvent): void {
         const data = JSON.parse(event.data)
         switch (data.action) {
@@ -342,6 +359,7 @@ declare const Toastify: {
     }
 
     function onClose(): void {
+        client.isConnected = false
         const DISCONNECT_MESSAGE = `Hold on a sec, we\'re reconnecting...`
         console.log('Disconnected from the WebSocket server')
         updateConnectionStatusToast(
@@ -352,5 +370,20 @@ declare const Toastify: {
     }
     function onError(error: Event): void {
         console.error('WebSocket Error:', error)
+    }
+
+    function getConnectionStatus(ws: WebSocket): string {
+        switch (ws.readyState) {
+            case WebSocket.CONNECTING:
+                return 'Connecting'
+            case WebSocket.OPEN:
+                return 'Open'
+            case WebSocket.CLOSING:
+                return 'Closing'
+            case WebSocket.CLOSED:
+                return 'Closed'
+            default:
+                return 'Unknown'
+        }
     }
 })()

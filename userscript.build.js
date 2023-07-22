@@ -162,7 +162,11 @@
       session: null,
       api: null,
       version: null,
-      initialized: false
+      initialized: false,
+      isConnected: false,
+      actions: {
+        isCooldown: false
+      }
     };
     loadStyles("https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css");
     loadScript("https://cdn.jsdelivr.net/npm/toastify-js").then(() => {
@@ -256,6 +260,12 @@
         return null;
       }
     }
+    async function requestPixel() {
+      if (getConnectionStatus(client.ws) !== "Open") {
+        return;
+      }
+      client.ws.send(JSON.stringify({ action: "requestPixel" }));
+    }
     function setupEventListeners(ws) {
       ws.onopen = onOpen;
       ws.onmessage = onMessage;
@@ -264,6 +274,7 @@
     }
     async function onOpen() {
       console.log("Connected to the WebSocket server");
+      client.isConnected = true;
       Toastify({
         text: "Connected to r/place UK Bot! \u2615",
         duration: 3e3,
@@ -282,11 +293,7 @@
         console.error("Failed to get access token:", error);
         return;
       }
-      const setPixel = await client.api.setPixel(282, 836, 1);
-      console.log("setPixel :>> ", setPixel);
-      const pixelHistory = await client.api.getPixelHistory({
-        coordinate: { x: 282, y: 836 }
-      });
+      await requestPixel();
     }
     function onMessage(event) {
       const data = JSON.parse(event.data);
@@ -394,6 +401,7 @@
       }, delay);
     }
     function onClose() {
+      client.isConnected = false;
       const DISCONNECT_MESSAGE = `Hold on a sec, we're reconnecting...`;
       console.log("Disconnected from the WebSocket server");
       updateConnectionStatusToast(
@@ -404,6 +412,20 @@
     }
     function onError(error) {
       console.error("WebSocket Error:", error);
+    }
+    function getConnectionStatus(ws) {
+      switch (ws.readyState) {
+        case WebSocket.CONNECTING:
+          return "Connecting";
+        case WebSocket.OPEN:
+          return "Open";
+        case WebSocket.CLOSING:
+          return "Closing";
+        case WebSocket.CLOSED:
+          return "Closed";
+        default:
+          return "Unknown";
+      }
     }
   })();
 })();
