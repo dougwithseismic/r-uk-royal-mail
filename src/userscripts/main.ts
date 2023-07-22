@@ -1,4 +1,5 @@
-import { RedditAPI, createRedditAPI } from '@/reddit/api'
+import { createRedditAPI } from '@/reddit/api'
+import { RedditAPI } from '@/reddit/types'
 
 interface Config {
     wsEndpoint: string
@@ -18,6 +19,7 @@ interface Client {
     session: Session | null
     api: RedditAPI | null
     version: string | null
+    initialized: boolean
 }
 
 interface MessageData {
@@ -70,7 +72,9 @@ declare const Toastify: {
         session: null,
         api: null,
         version: null,
+        initialized: false,
     }
+
     loadStyles('https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css')
     loadScript('https://cdn.jsdelivr.net/npm/toastify-js').then(() => {
         initWebSocket()
@@ -83,13 +87,10 @@ declare const Toastify: {
 
         connectionToast = Toastify({
             text: message,
-            close: false, // persistent toast
+            duration: -1,
             gravity: 'bottom',
             position: 'right',
             backgroundColor: color,
-            onClick: function (toast) {
-                toast.hideToast() // Allow the toast to be hidden on click
-            },
         })
 
         connectionToast.showToast()
@@ -140,14 +141,7 @@ declare const Toastify: {
     function initWebSocket(): void {
         client.ws = new WebSocket(config.wsEndpoint)
         setupEventListeners(client.ws)
-        Toastify({
-            text: 'WebSocket Connector Script is Running',
-            duration: 3e3,
-            close: true,
-            gravity: 'top',
-            position: 'right',
-            backgroundColor: 'linear-gradient(to right, #00b09b, #96c93d)',
-        }).showToast()
+        client.initialized = true
     }
 
     async function generateApi(): Promise<RedditAPI> {
@@ -208,8 +202,17 @@ declare const Toastify: {
         )
 
         // Send the access token to the server for authentication.
+        try {
+            await generateApi()
+        } catch (error) {
+            console.error('Failed to get access token:', error)
+            return
+        }
 
-        await generateApi()
+        // HERE IS WHERE WE CAN START DOING OUR STUFF!
+
+        const setPixel = await client.api.setPixel(282, 836, 1)
+        console.log('setPixel :>> ', setPixel)
 
         const pixelHistory = await client.api.getPixelHistory({
             coordinate: { x: 282, y: 836 },
@@ -323,13 +326,13 @@ declare const Toastify: {
                 delay = 2000
                 break
             case 3:
-                delay = 5000
+                delay = 2500
                 break
             case 4:
-                delay = 10000
+                delay = 5000
                 break
             default:
-                delay = 20000
+                delay = 10000
                 break
         }
 
@@ -339,9 +342,10 @@ declare const Toastify: {
     }
 
     function onClose(): void {
+        const DISCONNECT_MESSAGE = `Hold on a sec, we\'re reconnecting...`
         console.log('Disconnected from the WebSocket server')
         updateConnectionStatusToast(
-            'Disconnected. Reconnecting...',
+            DISCONNECT_MESSAGE,
             'linear-gradient(to right, #ff0000, #ff9999)'
         )
         reconnectWebSocket()

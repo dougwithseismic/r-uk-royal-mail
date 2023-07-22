@@ -24,7 +24,7 @@ type ConfigData = {
 }
 
 // Config : Sent to client on connect.
-const VERSION = '0.0.2'
+const VERSION = '0.0.1'
 const CANVAS_WIDTH = 1000
 const CANVAS_HEIGHT = 1000
 const IMAGE_X = 500

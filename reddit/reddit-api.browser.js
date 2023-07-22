@@ -61,14 +61,26 @@
   );
 
   // src/reddit/api.ts
+  var BASE_URL = "https://gql-realtime-2.reddit.com";
+  var createHeaders = (token) => ({
+    accept: "*/*",
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+    Referer: "https://garlic-bread.reddit.com/"
+  });
+  var makeFetchRequest = async (url, body, headers, fetcher) => {
+    const response = await fetcher(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      throw new Error(`Reddit API responded with ${response.status}`);
+    }
+    return await response.json();
+  };
   var createRedditAPI = (token, fetcher = fetch) => {
-    const BASE_URL = "https://gql-realtime-2.reddit.com";
-    const HEADERS = {
-      accept: "*/*",
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-      Referer: "https://garlic-bread.reddit.com/"
-    };
+    const HEADERS = createHeaders(token);
     const getPixelHistory = async (options = {}) => {
       const { coordinate = { x: 0, y: 720 }, colorIndex = 0, canvasIndex = 1 } = options;
       const body = {
@@ -81,17 +93,9 @@
         },
         query: PIXEL_HISTORY_QUERY
       };
-      const response = await fetcher(`${BASE_URL}/query`, {
-        method: "POST",
-        headers: HEADERS,
-        body: JSON.stringify(body)
-      });
-      if (!response.ok) {
-        throw new Error(`Reddit API responded with ${response.status}`);
-      }
-      return await response.json();
+      return await makeFetchRequest(`${BASE_URL}/query`, body, HEADERS, fetcher);
     };
-    const setPixel = async (x, y, colorIndex) => {
+    const setPixel = async (x, y, colorIndex, canvasIndex = 1) => {
       const requestBody = {
         operationName: "setPixel",
         variables: {
@@ -100,17 +104,30 @@
             PixelMessageData: {
               coordinate: { x, y },
               colorIndex,
-              canvasIndex: 1
+              canvasIndex
             }
           }
         },
         query: SET_PIXEL_QUERY
       };
-      return fetcher(`${BASE_URL}/query`, {
-        headers: HEADERS,
-        body: JSON.stringify(requestBody),
-        method: "POST"
-      });
+      const response = await makeFetchRequest(`${BASE_URL}/query`, requestBody, HEADERS, fetcher);
+      if (response.errors) {
+        const errMessage = response.errors[0].message;
+        switch (errMessage) {
+          case "Ratelimited":
+            const nextAvailablePixelTimestamp = response.errors[0].extensions.nextAvailablePixelTs;
+            return {
+              error: "rate_limited",
+              data: {
+                nextAvailablePixelTimestamp,
+                message: `Looks like we tried to set a pixel whilst on cooldown. No problem! We'll try again.`
+              }
+            };
+          default:
+            throw new Error(response.errors);
+        }
+      }
+      return response;
     };
     return { getPixelHistory, setPixel };
   };

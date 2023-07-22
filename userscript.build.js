@@ -73,14 +73,26 @@
   );
 
   // src/reddit/api.ts
+  var BASE_URL = "https://gql-realtime-2.reddit.com";
+  var createHeaders = (token) => ({
+    accept: "*/*",
+    authorization: `Bearer ${token}`,
+    "content-type": "application/json",
+    Referer: "https://garlic-bread.reddit.com/"
+  });
+  var makeFetchRequest = async (url, body, headers, fetcher) => {
+    const response = await fetcher(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      throw new Error(`Reddit API responded with ${response.status}`);
+    }
+    return await response.json();
+  };
   var createRedditAPI = (token, fetcher = fetch) => {
-    const BASE_URL = "https://gql-realtime-2.reddit.com";
-    const HEADERS = {
-      accept: "*/*",
-      authorization: `Bearer ${token}`,
-      "content-type": "application/json",
-      Referer: "https://garlic-bread.reddit.com/"
-    };
+    const HEADERS = createHeaders(token);
     const getPixelHistory = async (options = {}) => {
       const { coordinate = { x: 0, y: 720 }, colorIndex = 0, canvasIndex = 1 } = options;
       const body = {
@@ -93,17 +105,9 @@
         },
         query: PIXEL_HISTORY_QUERY
       };
-      const response = await fetcher(`${BASE_URL}/query`, {
-        method: "POST",
-        headers: HEADERS,
-        body: JSON.stringify(body)
-      });
-      if (!response.ok) {
-        throw new Error(`Reddit API responded with ${response.status}`);
-      }
-      return await response.json();
+      return await makeFetchRequest(`${BASE_URL}/query`, body, HEADERS, fetcher);
     };
-    const setPixel = async (x, y, colorIndex) => {
+    const setPixel = async (x, y, colorIndex, canvasIndex = 1) => {
       const requestBody = {
         operationName: "setPixel",
         variables: {
@@ -112,17 +116,30 @@
             PixelMessageData: {
               coordinate: { x, y },
               colorIndex,
-              canvasIndex: 1
+              canvasIndex
             }
           }
         },
         query: SET_PIXEL_QUERY
       };
-      return fetcher(`${BASE_URL}/query`, {
-        headers: HEADERS,
-        body: JSON.stringify(requestBody),
-        method: "POST"
-      });
+      const response = await makeFetchRequest(`${BASE_URL}/query`, requestBody, HEADERS, fetcher);
+      if (response.errors) {
+        const errMessage = response.errors[0].message;
+        switch (errMessage) {
+          case "Ratelimited":
+            const nextAvailablePixelTimestamp = response.errors[0].extensions.nextAvailablePixelTs;
+            return {
+              error: "rate_limited",
+              data: {
+                nextAvailablePixelTimestamp,
+                message: `Looks like we tried to set a pixel whilst on cooldown. No problem! We'll try again.`
+              }
+            };
+          default:
+            throw new Error(response.errors);
+        }
+      }
+      return response;
     };
     return { getPixelHistory, setPixel };
   };
@@ -144,7 +161,8 @@
       placeReference: null,
       session: null,
       api: null,
-      version: null
+      version: null,
+      initialized: false
     };
     loadStyles("https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css");
     loadScript("https://cdn.jsdelivr.net/npm/toastify-js").then(() => {
@@ -156,14 +174,10 @@
       }
       connectionToast = Toastify({
         text: message,
-        close: false,
-        // persistent toast
+        duration: -1,
         gravity: "bottom",
         position: "right",
-        backgroundColor: color,
-        onClick: function(toast) {
-          toast.hideToast();
-        }
+        backgroundColor: color
       });
       connectionToast.showToast();
     }
@@ -211,14 +225,7 @@
     function initWebSocket() {
       client.ws = new WebSocket(config.wsEndpoint);
       setupEventListeners(client.ws);
-      Toastify({
-        text: "WebSocket Connector Script is Running",
-        duration: 3e3,
-        close: true,
-        gravity: "top",
-        position: "right",
-        backgroundColor: "linear-gradient(to right, #00b09b, #96c93d)"
-      }).showToast();
+      client.initialized = true;
     }
     async function generateApi() {
       try {
@@ -269,7 +276,14 @@
         "Connected to r/place UK Bot! \u2615",
         "linear-gradient(to right, #00b09b, #96c93d)"
       );
-      await generateApi();
+      try {
+        await generateApi();
+      } catch (error) {
+        console.error("Failed to get access token:", error);
+        return;
+      }
+      const setPixel = await client.api.setPixel(282, 836, 1);
+      console.log("setPixel :>> ", setPixel);
       const pixelHistory = await client.api.getPixelHistory({
         coordinate: { x: 282, y: 836 }
       });
@@ -366,13 +380,13 @@
           delay = 2e3;
           break;
         case 3:
-          delay = 5e3;
+          delay = 2500;
           break;
         case 4:
-          delay = 1e4;
+          delay = 5e3;
           break;
         default:
-          delay = 2e4;
+          delay = 1e4;
           break;
       }
       setTimeout(() => {
@@ -380,9 +394,10 @@
       }, delay);
     }
     function onClose() {
+      const DISCONNECT_MESSAGE = `Hold on a sec, we're reconnecting...`;
       console.log("Disconnected from the WebSocket server");
       updateConnectionStatusToast(
-        "Disconnected. Reconnecting...",
+        DISCONNECT_MESSAGE,
         "linear-gradient(to right, #ff0000, #ff9999)"
       );
       reconnectWebSocket();
