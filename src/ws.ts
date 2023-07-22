@@ -12,16 +12,33 @@ type Client = {
     subscriptions: Record<string, any>
     capabilities: Record<string, any>
     sentValidMessage: boolean
+    accessToken?: string
 }
+
+type ConfigData = {
+    version: string
+    canvasWidth: number
+    canvasHeight: number
+    imageX: number
+    imageY: number
+}
+
+// Config : Sent to client on connect.
+const VERSION = '0.0.2'
+const CANVAS_WIDTH = 1000
+const CANVAS_HEIGHT = 1000
+const IMAGE_X = 500
+const IMAGE_Y = 500
 
 const activeClients: Map<string, Client> = new Map()
 const lastPong: Map<string, number> = new Map()
 
-const configData = {
-    canvasWidth: 1000,
-    canvasHeight: 1000,
-    imageX: 500,
-    imageY: 500,
+const configData: ConfigData = {
+    version: VERSION,
+    canvasWidth: CANVAS_WIDTH,
+    canvasHeight: CANVAS_HEIGHT,
+    imageX: IMAGE_X,
+    imageY: IMAGE_Y,
 }
 
 export function setupWebSocket(server: http.Server) {
@@ -79,6 +96,10 @@ export function setupWebSocket(server: http.Server) {
                         ws.send(JSON.stringify(response))
                     }
                     break
+
+                case 'receiveAccessToken':
+                    const accessToken = data.data.accessToken
+                    client.accessToken = accessToken
 
                 case 'checkPixel':
                     // Logic to handle pixel checking (e.g., update the master image)

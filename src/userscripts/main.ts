@@ -1,103 +1,133 @@
-// ==UserScript==
-// @name       WebSocket Connector
-// @namespace  http://localhost/
-// @version    0.1
-// @description  Connects to a WebSocket server on localhost
-// @match      https://www.reddit.com/r/place/*
-// @match      https://new.reddit.com/r/place/*
-// @grant      GM_addStyle
-// @grant      GM_xmlhttpRequest
-// @run-at     document-end
-// ==/UserScript==
+import { RedditAPI, createRedditAPI } from '@/reddit/api'
 
-type Session = {
+interface Config {
+    wsEndpoint: string
+}
+
+interface Session {
     expires: Date
     token: string
 }
 
-type Client = {
+interface Client {
     ws: WebSocket | null
     orderOffset: { x: number; y: number }
-    session?: Session
+    orderReference: CanvasRenderingContext2D | null
+    orderPriority: CanvasRenderingContext2D | null
+    placeReference: CanvasRenderingContext2D | null
+    session: Session | null
+    api: RedditAPI | null
+    version: string | null
 }
 
-type ToastifyOptions = {
+interface MessageData {
+    action: string
+    data?: any
+    pixel?: {
+        x: number
+        y: number
+        color: number
+    }
+}
+
+interface ToastifyOptions {
     text: string
     duration?: number
     close?: boolean
     gravity?: 'top' | 'bottom'
     position?: 'left' | 'center' | 'right'
     backgroundColor?: string
+    onClick?: (toast: { hideToast: () => void }) => void
+}
+
+type Toast = {
+    showToast: () => void
+    hideToast?: () => void
+    options?: {
+        text: string
+    }
 }
 
 declare const Toastify: {
-    (options: ToastifyOptions): {
-        showToast: () => void
-    }
+    (options: ToastifyOptions): Toast
 }
 ;(() => {
-    const config = {
+    const config: Config = {
         wsEndpoint: 'ws://localhost:5678',
     }
 
-    const EXPIRY_MARGIN = 15_000 // Prevent the token expiring while making the request
+    let connectionToast: Toast | null = null // The toast object to display the connection status
+    let reconnectionAttempts = 0
 
-    const client = {
-        ws: null, // Placeholder for WebSocket
+    const EXPIRY_MARGIN = 15e3
+    const client: Client = {
+        ws: null,
+        // Placeholder for WebSocket
         orderOffset: { x: 0, y: 0 },
         orderReference: null,
         orderPriority: null,
         placeReference: null,
         session: null,
+        api: null,
+        version: null,
     }
-
-    // Load Toastify styles and scripts
     loadStyles('https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css')
     loadScript('https://cdn.jsdelivr.net/npm/toastify-js').then(() => {
-        // Once Toastify is loaded, initiate the main logic
         initWebSocket()
     })
 
-    async function getAccessToken() {
+    function updateConnectionStatusToast(message, color) {
+        if (connectionToast) {
+            connectionToast.hideToast() // hide the current toast if one exists
+        }
+
+        connectionToast = Toastify({
+            text: message,
+            close: false, // persistent toast
+            gravity: 'bottom',
+            position: 'right',
+            backgroundColor: color,
+            onClick: function (toast) {
+                toast.hideToast() // Allow the toast to be hidden on click
+            },
+        })
+
+        connectionToast.showToast()
+    }
+
+    async function getAccessToken(): Promise<string> {
         if (client.session && client.session.expires.getTime() - EXPIRY_MARGIN < Date.now()) {
             return client.session.token
         }
-
         const response = await fetch('/r/place')
         const body = await response.text()
-
         const configRaw = body.split('<script id="data">window.___r = ')[1].split(';</script>')[0]
         const localConfig = JSON.parse(configRaw)
-
         if (localConfig.user.session.unsafeLoggedOut) {
             return localConfig.user.session.accessToken
         }
-
         client.session = {
             expires: new Date(localConfig.user.session.expires),
             token: localConfig.user.session.accessToken,
         }
-
         return client.session.token
     }
-
-    function loadStyles(href) {
+    function loadStyles(href: string): void {
         const link = document.createElement('link')
         link.rel = 'stylesheet'
         link.href = href
         document.head.appendChild(link)
     }
-
-    function loadScript(src) {
+    function loadScript(src: string): Promise<void> {
         return new Promise((resolve) => {
             const script = document.createElement('script')
-            script.onload = resolve
+            script.onload = (event) => resolve()
             script.src = src
             document.body.appendChild(script)
         })
     }
 
-    function createCanvas(id, width, height) {
+    function createCanvas(id: string, width: number, height: number): CanvasRenderingContext2D {
         const canvas = document.createElement('canvas')
         canvas.width = width
         canvas.height = height
@@ -107,15 +137,12 @@ declare const Toastify: {
         document.body.appendChild(canvas)
         return ctx
     }
-
-    function initWebSocket() {
+    function initWebSocket(): void {
         client.ws = new WebSocket(config.wsEndpoint)
         setupEventListeners(client.ws)
-
-        // Notify user that the script is running using Toastify
         Toastify({
             text: 'WebSocket Connector Script is Running',
-            duration: 3000,
+            duration: 3e3,
             close: true,
             gravity: 'top',
             position: 'right',
@@ -123,28 +150,74 @@ declare const Toastify: {
         }).showToast()
     }
 
-    function setupEventListeners(ws) {
+    async function generateApi(): Promise<RedditAPI> {
+        try {
+            const accessToken = await getAccessToken()
+            if (!accessToken) {
+                throw new Error('Failed to get access token')
+            }
+
+            // Send the access token to the server for authentication.
+            client.ws.send(
+                JSON.stringify({
+                    action: 'receiveAccessToken',
+                    data: {
+                        accessToken,
+                    },
+                })
+            )
+
+            client.api = createRedditAPI(accessToken)
+            return client.api
+        } catch (error) {
+            console.error('Failed to get access token:', error)
+            Toastify({
+                text: 'Failed to get access token. Refresh the page and try again.',
+                duration: 3e3,
+
+                close: true,
+                gravity: 'top',
+                position: 'right',
+                backgroundColor: 'linear-gradient(to right, #ff0000, #ff9999)',
+            }).showToast()
+
+            return null
+        }
+    }
+
+    function setupEventListeners(ws: WebSocket): void {
         ws.onopen = onOpen
         ws.onmessage = onMessage
         ws.onclose = onClose
         ws.onerror = onError
-        ws.onping = onPing
     }
-
-    function onOpen() {
+    async function onOpen(): Promise<void> {
         console.log('Connected to the WebSocket server')
-
         Toastify({
-            text: 'Connected to r/place UK Bot! ☕',
-            duration: 3000,
+            text: 'Connected to r/place UK Bot! \u2615',
+            duration: 3e3,
             close: true,
             gravity: 'top',
             position: 'right',
             backgroundColor: 'linear-gradient(to right, #00b09b, #96c93d)',
         }).showToast()
-    }
 
-    function onMessage(event) {
+        updateConnectionStatusToast(
+            'Connected to r/place UK Bot! \u2615',
+            'linear-gradient(to right, #00b09b, #96c93d)'
+        )
+
+        // Send the access token to the server for authentication.
+
+        await generateApi()
+
+        const pixelHistory = await client.api.getPixelHistory({
+            coordinate: { x: 282, y: 836 },
+        })
+
+        // Whilst the WebSocket is open, find out the latest status  request pixels from the server and draw them on the canvas.
+    }
+    function onMessage(event: MessageEvent): void {
         const data = JSON.parse(event.data)
         switch (data.action) {
             case 'config':
@@ -161,8 +234,7 @@ declare const Toastify: {
         }
     }
 
-    function handleConfig(configData) {
-        // Use this function to adjust your setup according to the received configuration data
+    function generateClientCanvases(configData: any): void {
         client.orderReference = createCanvas(
             'placeuk-userscript-order-reference',
             configData.canvasWidth,
@@ -178,19 +250,103 @@ declare const Toastify: {
             configData.canvasWidth,
             configData.canvasHeight
         )
-
-        // And any other necessary setup or changes
     }
 
-    function onClose() {
+    function handleConfig(configData: any): void {
+        // Check if the versions mismatch
+        if (client.version && client.version !== configData.version) {
+            showWarningToastWithCountdown(10) // start countdown from 10 seconds
+        }
+
+        // Store the version
+        client.version = configData.version
+
+        // Generate the canvases
+        generateClientCanvases(configData)
+    }
+
+    function showWarningToastWithCountdown(seconds) {
+        const WARNING_TEXT_TEMPLATE = `New version detected! Refreshing in {seconds} seconds...`
+        const PAUSED_TEXT = `Refresh paused. Refresh manually to get the new version.`
+
+        let countdownInterval = null
+
+        let remainingSeconds = seconds
+
+        const toast: any = Toastify({
+            text: WARNING_TEXT_TEMPLATE.replace('{seconds}', String(remainingSeconds)),
+            close: true,
+            gravity: 'top',
+            position: 'center',
+            backgroundColor: 'linear-gradient(to right, #ff0000, #ff9999)',
+            onClick: function () {
+                if (countdownInterval) {
+                    clearInterval(countdownInterval)
+                    toast.hideToast()
+                    Toastify({
+                        text: PAUSED_TEXT,
+                        close: true,
+                        gravity: 'top',
+                        position: 'center',
+                        backgroundColor: 'linear-gradient(to right, #ff9933, #ffcc99)',
+                    }).showToast()
+                }
+            },
+        }).showToast()
+
+        countdownInterval = setInterval(() => {
+            remainingSeconds--
+            if (remainingSeconds <= 0) {
+                clearInterval(countdownInterval)
+                location.reload()
+            } else {
+                toast.options.text = WARNING_TEXT_TEMPLATE.replace(
+                    '{seconds}',
+                    String(remainingSeconds)
+                )
+                toast.showToast() // Update the toast message with the new countdown
+            }
+        }, 1000)
+    }
+
+    function reconnectWebSocket() {
+        if (reconnectionAttempts < 5) {
+            reconnectionAttempts++
+        }
+
+        let delay
+        switch (reconnectionAttempts) {
+            case 1:
+                delay = 1000
+                break
+            case 2:
+                delay = 2000
+                break
+            case 3:
+                delay = 5000
+                break
+            case 4:
+                delay = 10000
+                break
+            default:
+                delay = 20000
+                break
+        }
+
+        setTimeout(() => {
+            initWebSocket()
+        }, delay)
+    }
+
+    function onClose(): void {
         console.log('Disconnected from the WebSocket server')
+        updateConnectionStatusToast(
+            'Disconnected. Reconnecting...',
+            'linear-gradient(to right, #ff0000, #ff9999)'
+        )
+        reconnectWebSocket()
     }
-
-    function onError(error) {
+    function onError(error: Event): void {
         console.error('WebSocket Error:', error)
-    }
-
-    function onPing() {
-        client.ws.pong()
     }
 })()

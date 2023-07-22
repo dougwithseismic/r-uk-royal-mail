@@ -1,6 +1,11 @@
 import { PIXEL_HISTORY_QUERY } from './get-pixel-history'
 import { SET_PIXEL_QUERY } from './set-pixel'
 
+export interface RedditAPI {
+    getPixelHistory: (options?: PixelHistoryOptions) => Promise<PixelHistoryResponse>
+    setPixel: (x: number, y: number, colorIndex: number) => Promise<Response>
+}
+
 type Coordinate = {
     x: number
     y: number
@@ -54,7 +59,7 @@ type Fetcher = (url: string, options: RequestInit) => Promise<Response>
  * @returns {Object} - An API client object with methods to interact with the Reddit API.
  */
 
-export const createRedditAPI = (token: string, fetcher: Fetcher = fetch) => {
+export const createRedditAPI = (token: string, fetcher: Fetcher = fetch): RedditAPI => {
     const BASE_URL = 'https://gql-realtime-2.reddit.com'
     const HEADERS = {
         accept: '*/*',

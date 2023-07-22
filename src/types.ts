@@ -19,4 +19,11 @@ export type PixelResponse = {
     pixel?: Pixel
 }
 
-export type Message = PixelRequest | PixelCheck | PixelResponse
+export type ReceiveAccessToken = {
+    action: 'receiveAccessToken'
+    data: {
+        accessToken?: string
+    }
+}
+
+export type Message = PixelRequest | PixelCheck | PixelResponse | ReceiveAccessToken
