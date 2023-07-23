@@ -37,3 +37,4 @@ yarn.lock
 # Swagger files
 *.swagger.json
 
+details.csv
