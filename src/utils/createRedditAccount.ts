@@ -29,7 +29,7 @@ export async function createRedditAccount(email = DEFAULT_EMAIL): Promise<void> 
         console.error('Error during Reddit account creation:', error)
     } finally {
         // Ensure the browser is closed, freeing up resources.
-        await browser.close()
+        // await browser.close()
     }
 }
 
@@ -90,13 +90,36 @@ async function inputLoginDetails(page: Page, details: UserDetails): Promise<void
         throw new Error('Username input field not found.')
     }
 
+    // await usernameInput.focus()
+    // await page.type(USERNAME_SELECTOR, details.username, { delay: 100 })
+
+    // await page.evaluate(
+    //     (selector, value) => {
+    //         // @ts-ignore
+    //         document.querySelector(selector).value = value
+    //     },
+    //     USERNAME_SELECTOR,
+    //     details.username
+    // )
+
+    await usernameInput.focus()
+    await page.keyboard.type(details.username, { delay: 100 })
+
+    // await page.$eval(USERNAME_SELECTOR, (el, value) => (el.value = value), details.username)
+
+    // await usernameInput.evaluate((el, value) => (el.value = value), details.username)
+
     await usernameInput.focus()
     await page.type(USERNAME_SELECTOR, details.username, { delay: 100 })
+    await page.keyboard.press('Enter')
+
+
+    // Set clipboard value
 
     // Wait for Reddit to check if username is available
-    await page.waitForResponse(
-        (response) => response.url() === CHECK_USERNAME_URL && response.status() === 200
-    )
+    // await page.waitForResponse(
+    //     (response) => response.url() === CHECK_USERNAME_URL && response.status() === 200
+    // )
 
     // Input password
     const passwordInput = await page.$(PASSWORD_SELECTOR)
