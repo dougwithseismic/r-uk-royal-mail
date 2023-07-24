@@ -107,8 +107,16 @@ function processPNG(png: PNG): PixelData[] {
             }
         }
     }
-
     return data
+}
+
+function saveToJSON(data: PixelData[]) {
+    try {
+        const json = JSON.stringify(data)
+        fs.writeFileSync('data.json', json)
+    } catch (error) {
+        throw new Error('Failed to save data to JSON file.')
+    }
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
@@ -118,19 +126,6 @@ function rgbToHex(r: number, g: number, b: number): string {
 function processLocalPNG(filePath: string): any[] {
     const data = fs.readFileSync(filePath)
     const png = PNG.sync.read(data)
-
-    return processPNG(png)
-}
-
-async function processImageFromURL(
-    url: string,
-    expectedWidth: number,
-    expectedHeight: number
-): Promise<PixelData[]> {
-    const png = await fetchImage(url)
-    if (!checkCanvasSize(png, expectedWidth, expectedHeight)) {
-        throw new Error("Image size doesn't match the expected canvas size")
-    }
 
     return processPNG(png)
 }
@@ -155,6 +150,24 @@ function savePixelsAsPNG(
 
     const buffer = PNG.sync.write(png)
     fs.writeFileSync(outputPath, buffer)
+}
+
+// The main one to use
+
+async function processImageFromURL(
+    url: string,
+    expectedWidth: number,
+    expectedHeight: number
+): Promise<PixelData[]> {
+    const png = await fetchImage(url)
+    if (!checkCanvasSize(png, expectedWidth, expectedHeight)) {
+        throw new Error("Image size doesn't match the expected canvas size")
+    }
+
+    const pixelMatrix = processPNG(png)
+    saveToJSON(pixelMatrix)
+
+    return pixelMatrix
 }
 
 export { processImageFromURL, savePixelsAsPNG, processLocalPNG }

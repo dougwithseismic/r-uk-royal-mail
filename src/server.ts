@@ -56,7 +56,6 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 })
 
 server.listen(port, async () => {
-    createRedditAccount('change@me.com')
     console.log(
         `Ahoy there, matey! 🏴‍☠️  The good ship 'Express Brigantine' with her trusty sidekick 'WebSocket' be anchored firmly in port ${port}. While we're ashore, fancy a cuppa tea? ☕️`
     )
