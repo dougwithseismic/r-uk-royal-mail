@@ -21,6 +21,7 @@ esbuild
         platform: 'node',
         outbase: 'src', // base directory
         outdir: 'dist', // output directory
+        external: ['canvas'],
     })
     .then(() => {
         // Build the user scripts for the browser
