@@ -21,9 +21,6 @@ const port = process.env.PORT || 5678
 // Create an HTTP server
 const server = http.createServer(app)
 
-// Set up WebSocket using the function from the new module
-setupWebSocket(server)
-
 // Parse our PNG image into a 2D array of pixels
 // const IMAGE_URL = 'https://media.discordapp.net/attachments/959908175488876615/1132363824847130694/test.png'
 const IMAGE_URL =
@@ -55,37 +52,15 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     res.status(500).send('Internal Server Error')
 })
 
-// Assuming you have imported necessary modules and set up any required types.
-// If you have specific types for placeClient, IMAGE_URL, etc., you should use those.
-
-interface IDifference {
-    right: number
-    wrong: number
-    total: number
-}
-
-const logElapsedTime = (start: [number, number], action: string): void => {
-    const elapsed = process.hrtime(start)
-    logger.info(`${action} took ${elapsed[0]}s ${elapsed[1] / 1000000}ms`)
-}
-
 server.listen(port, async () => {
-    const startConnect: [number, number] = process.hrtime()
-    await placeClient.connect()
-    logElapsedTime(startConnect, 'placeClient.connect()')
-
-    const startUpdateOrders: [number, number] = process.hrtime()
-    await placeClient.updateOrders(IMAGE_URL, [0, 0])
-    logElapsedTime(startUpdateOrders, 'placeClient.updateOrders()')
-
-    const startOrderDifference: [number, number] = process.hrtime()
-    const difference: IDifference = placeClient.getOrderDifference()
-    logElapsedTime(startOrderDifference, 'placeClient.getOrderDifference()')
-
-    logger.info(`difference :>> ${JSON.stringify(difference)}`)
-    // await processImageFromURL(IMAGE_URL, IMAGE_X, IMAGE_Y);
-
     console.log(
         `Ahoy there, matey! 🏴‍☠️  The good ship 'Express Brigantine' with her trusty sidekick 'WebSocket' be anchored firmly in port ${port}. While we're ashore, fancy a cuppa tea? ☕️`
     )
+
+    logger.info('Connecting to r/place..')
+    await placeClient.connect() // This connects to the r/place websocket.
+
+    await placeClient.updateOrders(IMAGE_URL, [0, 0])
+
+    setupWebSocket(server) // This loads the websocket that cients will connect to.
 })

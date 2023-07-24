@@ -160,9 +160,9 @@ async function processImageFromURL(
     expectedHeight: number
 ): Promise<PixelData[]> {
     const png = await fetchImage(url)
-    if (!checkCanvasSize(png, expectedWidth, expectedHeight)) {
-        throw new Error("Image size doesn't match the expected canvas size")
-    }
+    // if (!checkCanvasSize(png, expectedWidth, expectedHeight)) {
+    //     throw new Error("Image size doesn't match the expected canvas size")
+    // }
 
     const pixelMatrix = processPNG(png)
     saveToJSON(pixelMatrix)

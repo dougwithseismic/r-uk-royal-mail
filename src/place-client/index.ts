@@ -10,7 +10,18 @@ const CONFIG = {
     USER_AGENT:
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/116.0',
     ORIGIN: 'https://www.reddit.com',
+    trackedCanvases: [0, 1, 2, 3, 4, 5],
+    canvasPositions: [
+        [0, 0],
+        [1000, 0],
+        [2000, 0],
+        [0, 1000],
+        [1000, 1000],
+        [2000, 1000],
+    ],
 }
+
+let accessToken: string | null = null
 
 let canvasTimestamps: any[] = []
 let canvas: CanvasRenderingContext2D = createCanvas(
@@ -26,7 +37,9 @@ let queue: any[] = []
 
 const connect = async (): Promise<void> => {
     try {
-        const accessToken = await getAccessToken()
+        accessToken = await getAccessToken()
+        if (!accessToken) return
+
         const ws = setupWebSocket(accessToken)
         handleWebSocketEvents(ws, accessToken)
     } catch (error) {
@@ -50,7 +63,7 @@ const handleWebSocketEvents = (ws: WebSocket, accessToken: string): void => {
     ws.on('error', () => ws.close())
 }
 
-const onWebSocketOpen = (ws: WebSocket, accessToken: string): void => {
+const onWebSocketOpen = async (ws: WebSocket, accessToken: string): Promise<void> => {
     logger.info('Connected to r/place!')
     connected = true
     ws.send(
@@ -61,9 +74,48 @@ const onWebSocketOpen = (ws: WebSocket, accessToken: string): void => {
             },
         })
     )
+
+    CONFIG.trackedCanvases.forEach((canvasId) => {
+        subscribeCanvas(ws, canvasId)
+        canvasTimestamps[canvasId] = 0
+    })
+
+    while (ws.readyState !== WebSocket.CLOSED) {
+        if (queue.length === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+        }
+
+        const message = queue.shift()
+
+        const { payload } = JSON.parse(message)
+        if (!payload?.data?.subscribe?.data) continue
+
+        const { __typename, name, previousTimestamp, currentTimestamp, timestamp } =
+            payload.data.subscribe.data
+        if (__typename !== 'FullFrameMessageData' && __typename !== 'DiffFrameMessageData') return
+
+        const canvasID = name.match(/-frame\/(\d)\//)[1]
+
+        if (previousTimestamp && previousTimestamp !== canvasTimestamps[canvasID]) {
+            logger.error('Missing diff frame, reconnecting...')
+            connect()
+            return
+        }
+        canvasTimestamps[canvasID] = currentTimestamp ?? timestamp
+
+        const canvasPosition = CONFIG.canvasPositions[canvasID]
+
+        if (__typename === 'FullFrameMessageData') {
+            canvas.clearRect(canvasPosition[0], canvasPosition[1], 1000, 1000)
+        }
+
+        const image = await fetch(name)
+        const parsedImage = await loadImage(Buffer.from(await image.arrayBuffer()))
+        canvas.drawImage(parsedImage, canvasPosition[0], canvasPosition[1])
+    }
 }
 
-const onWebSocketMessage = (message: any): void => {
+const onWebSocketMessage = async (message: any): Promise<void> => {
     queue.push(message)
 }
 
@@ -112,6 +164,29 @@ const updateOrders = async (orderpath: string, offset: [number, number]): Promis
     )
 }
 
+function subscribeCanvas(ws: WebSocket, id: number) {
+    ws.send(
+        JSON.stringify({
+            id: '2',
+            type: 'start',
+            payload: {
+                variables: {
+                    input: {
+                        channel: {
+                            teamOwner: 'GARLICBREAD',
+                            category: 'CANVAS',
+                            tag: String(id),
+                        },
+                    },
+                },
+                extension: {},
+                operationName: 'replace',
+                query: 'subscription replace($input: SubscribeInput!) {  subscribe(input: $input) {    id    ... on BasicMessage {      data {        __typename        ... on FullFrameMessageData {          __typename          name          timestamp        }        ... on DiffFrameMessageData {          __typename          name          currentTimestamp          previousTimestamp        }      }      __typename    }    __typename  }}',
+            },
+        })
+    )
+}
+
 const getOrderDifference = (): { right: number; wrong: number; total: number } => {
     let right = 0
     let wrong = 0
@@ -149,4 +224,9 @@ const getOrderDifference = (): { right: number; wrong: number; total: number } =
     return { right, wrong, total: right + wrong }
 }
 
-export default { connect, updateOrders, getOrderDifference }
+export default {
+    connect,
+    updateOrders,
+    getOrderDifference,
+    canvas: { main: orderCanvas, reddit: canvas },
+}
