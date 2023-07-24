@@ -27,7 +27,7 @@ setupWebSocket(server)
 // Parse our PNG image into a 2D array of pixels
 // const IMAGE_URL = 'https://media.discordapp.net/attachments/959908175488876615/1132363824847130694/test.png'
 const IMAGE_URL =
-    'https://media.discordapp.net/attachments/959908175488876615/1132363824847130694/test.png'
+    'https://upload.wikimedia.org/wikipedia/commons/8/85/Logo-sribu-red-white-2000x1000.png'
 const IMAGE_X = 2000
 const IMAGE_Y = 1000
 
@@ -56,6 +56,8 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 })
 
 server.listen(port, async () => {
+    await processImageFromURL(IMAGE_URL, IMAGE_X, IMAGE_Y)
+
     console.log(
         `Ahoy there, matey! 🏴‍☠️  The good ship 'Express Brigantine' with her trusty sidekick 'WebSocket' be anchored firmly in port ${port}. While we're ashore, fancy a cuppa tea? ☕️`
     )

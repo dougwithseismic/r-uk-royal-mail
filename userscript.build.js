@@ -302,9 +302,7 @@
           handleConfig(data.data);
           break;
         case "sendPixel":
-          console.log(
-            `Received pixel data: x=${data.pixel.x}, y=${data.pixel.y}, color=${data.pixel.color}`
-          );
+          console.log(`Received pixel data`, data);
           break;
         case "noPixelsLeft":
           console.log("No pixels left to process");

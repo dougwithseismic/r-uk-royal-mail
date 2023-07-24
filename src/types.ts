@@ -16,7 +16,7 @@ export type PixelCheck = {
 
 export type PixelResponse = {
     action: 'sendPixel' | 'noPixelsLeft'
-    pixel?: Pixel
+    pixel?: Pixel[]
 }
 
 export type ReceiveAccessToken = {

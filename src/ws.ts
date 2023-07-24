@@ -3,6 +3,7 @@ import http from 'http'
 import crypto from 'crypto'
 import { Pixel, PixelRequest, PixelCheck, PixelResponse, Message } from './types'
 import logger from './middleware/logger'
+import getPixelsFromImage from './utils/get-pixels-from-master-image'
 
 type Client = {
     ws: WebSocket
@@ -45,7 +46,6 @@ export function setupWebSocket(server: http.Server) {
     const wss = new WebSocketServer({ server })
     logger.info('WebSocket server created')
 
-
     wss.on('connection', (ws) => {
         const client: Client = {
             ws,
@@ -83,11 +83,11 @@ export function setupWebSocket(server: http.Server) {
 
             switch (data.action) {
                 case 'requestPixel':
-                    const pixel = getPixelFromMasterImage()
-                    if (pixel) {
+                    const pixels = getPixelsFromImage(10)
+                    if (pixels) {
                         const response: PixelResponse = {
                             action: 'sendPixel',
-                            pixel,
+                            pixel: pixels,
                         }
                         ws.send(JSON.stringify(response))
                     } else {
@@ -128,14 +128,4 @@ export function setupWebSocket(server: http.Server) {
             }
         })
     }, 10000) // Every 10 seconds
-}
-
-function getPixelFromMasterImage(): Pixel | null {
-    // Here, you would interact with your master image logic
-    // For this example, we're returning a static pixel
-    return {
-        x: 10,
-        y: 15,
-        color: '#FF5733',
-    }
 }
