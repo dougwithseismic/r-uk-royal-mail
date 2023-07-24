@@ -38,3 +38,4 @@ yarn.lock
 *.swagger.json
 
 details.csv
+data.json

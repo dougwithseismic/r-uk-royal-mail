@@ -55,30 +55,35 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
     res.status(500).send('Internal Server Error')
 })
 
+// Assuming you have imported necessary modules and set up any required types.
+// If you have specific types for placeClient, IMAGE_URL, etc., you should use those.
+
+interface IDifference {
+    right: number
+    wrong: number
+    total: number
+}
+
+const logElapsedTime = (start: [number, number], action: string): void => {
+    const elapsed = process.hrtime(start)
+    logger.info(`${action} took ${elapsed[0]}s ${elapsed[1] / 1000000}ms`)
+}
+
 server.listen(port, async () => {
-    const startConnect = process.hrtime()
+    const startConnect: [number, number] = process.hrtime()
     await placeClient.connect()
-    const endConnect = process.hrtime(startConnect)
-    logger.info(`placeClient.connect() took ${endConnect[0]}s ${endConnect[1] / 1000000}ms`)
+    logElapsedTime(startConnect, 'placeClient.connect()')
 
-    const startUpdateOrders = process.hrtime()
+    const startUpdateOrders: [number, number] = process.hrtime()
     await placeClient.updateOrders(IMAGE_URL, [0, 0])
-    const endUpdateOrders = process.hrtime(startUpdateOrders)
-    logger.info(
-        `placeClient.updateOrders() took ${endUpdateOrders[0]}s ${endUpdateOrders[1] / 1000000}ms`
-    )
+    logElapsedTime(startUpdateOrders, 'placeClient.updateOrders()')
 
-    const startOrderDifference = process.hrtime()
-    const difference = placeClient.getOrderDifference()
-    const endOrderDifference = process.hrtime(startOrderDifference)
-    logger.info(
-        `placeClient.getOrderDifference() took ${endOrderDifference[0]}s ${
-            endOrderDifference[1] / 1000000
-        }ms`
-    )
+    const startOrderDifference: [number, number] = process.hrtime()
+    const difference: IDifference = placeClient.getOrderDifference()
+    logElapsedTime(startOrderDifference, 'placeClient.getOrderDifference()')
 
-    console.log('difference :>> ', difference)
-    // await processImageFromURL(IMAGE_URL, IMAGE_X, IMAGE_Y)
+    logger.info(`difference :>> ${JSON.stringify(difference)}`)
+    // await processImageFromURL(IMAGE_URL, IMAGE_X, IMAGE_Y);
 
     console.log(
         `Ahoy there, matey! 🏴‍☠️  The good ship 'Express Brigantine' with her trusty sidekick 'WebSocket' be anchored firmly in port ${port}. While we're ashore, fancy a cuppa tea? ☕️`
