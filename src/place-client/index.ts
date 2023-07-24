@@ -3,6 +3,7 @@ import { createCanvas, loadImage, CanvasRenderingContext2D } from 'canvas'
 import fetch from 'node-fetch'
 import logger from '../middleware/logger'
 
+// 1. Configuration & Globals
 const CONFIG = {
     CANVAS_DIMENSIONS: { width: 3000, height: 2000 },
     REDDIT_URL: 'https://reddit.com/r/place',
@@ -22,7 +23,6 @@ const CONFIG = {
 }
 
 let accessToken: string | null = null
-
 let canvasTimestamps: any[] = []
 let canvas: CanvasRenderingContext2D = createCanvas(
     CONFIG.CANVAS_DIMENSIONS.width,
@@ -35,6 +35,46 @@ let orderCanvas: CanvasRenderingContext2D = createCanvas(
 let connected: boolean = false
 let queue: any[] = []
 
+// 2. Utility Functions
+const extractAccessToken = (body: string): string | null => {
+    const match = body.match(/<script id="data">window.___r = ([^<]+);<\/script>/)
+    if (!match) return null
+    const config = JSON.parse(match[1])
+    return config.user.session.accessToken
+}
+
+const setupWebSocket = (accessToken: string): WebSocket => {
+    return new WebSocket(CONFIG.REDDIT_WS_URL, {
+        headers: {
+            'User-Agent': CONFIG.USER_AGENT,
+            Origin: CONFIG.ORIGIN,
+        },
+    })
+}
+
+const subscribeCanvas = (ws: WebSocket, id: number): void => {
+    ws.send(
+        JSON.stringify({
+            id: '2',
+            type: 'start',
+            payload: {
+                variables: {
+                    input: {
+                        channel: {
+                            teamOwner: 'GARLICBREAD',
+                            category: 'CANVAS',
+                            tag: String(id),
+                        },
+                    },
+                },
+                extension: {},
+                operationName: 'replace',
+                query: 'subscription replace($input: SubscribeInput!) {  subscribe(input: $input) {    id    ... on BasicMessage {      data {        __typename        ... on FullFrameMessageData {          __typename          name          timestamp        }        ... on DiffFrameMessageData {          __typename          name          currentTimestamp          previousTimestamp        }      }      __typename    }    __typename  }}',
+            },
+        })
+    )
+}
+
 const connect = async (): Promise<void> => {
     try {
         accessToken = await getAccessToken()
@@ -45,15 +85,6 @@ const connect = async (): Promise<void> => {
     } catch (error) {
         console.error('Error in connect:', error)
     }
-}
-
-const setupWebSocket = (accessToken: string): WebSocket => {
-    return new WebSocket(CONFIG.REDDIT_WS_URL, {
-        headers: {
-            'User-Agent': CONFIG.USER_AGENT,
-            Origin: CONFIG.ORIGIN,
-        },
-    })
 }
 
 const handleWebSocketEvents = (ws: WebSocket, accessToken: string): void => {
@@ -148,42 +179,12 @@ const getAccessToken = async (): Promise<string | null> => {
     }
 }
 
-const extractAccessToken = (body: string): string | null => {
-    const match = body.match(/<script id="data">window.___r = ([^<]+);<\/script>/)
-    if (!match) return null
-    const config = JSON.parse(match[1])
-    return config.user.session.accessToken
-}
-
 const updateOrders = async (orderpath: string, offset: [number, number]): Promise<void> => {
     const parsedImage = await loadImage(orderpath)
     orderCanvas.drawImage(
         parsedImage,
         offset[0] + CONFIG.CANVAS_DIMENSIONS.width / 2,
         offset[1] + CONFIG.CANVAS_DIMENSIONS.height / 2
-    )
-}
-
-function subscribeCanvas(ws: WebSocket, id: number) {
-    ws.send(
-        JSON.stringify({
-            id: '2',
-            type: 'start',
-            payload: {
-                variables: {
-                    input: {
-                        channel: {
-                            teamOwner: 'GARLICBREAD',
-                            category: 'CANVAS',
-                            tag: String(id),
-                        },
-                    },
-                },
-                extension: {},
-                operationName: 'replace',
-                query: 'subscription replace($input: SubscribeInput!) {  subscribe(input: $input) {    id    ... on BasicMessage {      data {        __typename        ... on FullFrameMessageData {          __typename          name          timestamp        }        ... on DiffFrameMessageData {          __typename          name          currentTimestamp          previousTimestamp        }      }      __typename    }    __typename  }}',
-            },
-        })
     )
 }
 
