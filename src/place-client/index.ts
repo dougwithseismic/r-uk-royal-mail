@@ -52,6 +52,25 @@ const setupWebSocket = (accessToken: string): WebSocket => {
     })
 }
 
+const connect = async (): Promise<void> => {
+    try {
+        accessToken = await getAccessToken()
+        if (!accessToken) return
+
+        const ws = setupWebSocket(accessToken)
+        handleWebSocketEvents(ws, accessToken)
+    } catch (error) {
+        console.error('Error in connect:', error)
+    }
+}
+
+const handleWebSocketEvents = (ws: WebSocket, accessToken: string): void => {
+    ws.on('open', () => onWebSocketOpen(ws, accessToken))
+    ws.on('message', onWebSocketMessage)
+    ws.on('close', onWebSocketClose)
+    ws.on('error', () => ws.close())
+}
+
 const subscribeCanvas = (ws: WebSocket, id: number): void => {
     ws.send(
         JSON.stringify({
@@ -75,28 +94,20 @@ const subscribeCanvas = (ws: WebSocket, id: number): void => {
     )
 }
 
-const connect = async (): Promise<void> => {
-    try {
-        accessToken = await getAccessToken()
-        if (!accessToken) return
-
-        const ws = setupWebSocket(accessToken)
-        handleWebSocketEvents(ws, accessToken)
-    } catch (error) {
-        console.error('Error in connect:', error)
-    }
-}
-
-const handleWebSocketEvents = (ws: WebSocket, accessToken: string): void => {
-    ws.on('open', () => onWebSocketOpen(ws, accessToken))
-    ws.on('message', onWebSocketMessage)
-    ws.on('close', onWebSocketClose)
-    ws.on('error', () => ws.close())
-}
-
+/**
+ * Handles the WebSocket connection and the logic associated with canvas updates.
+ *
+ * @param ws The active WebSocket instance.
+ * @param accessToken The token used for authorization.
+ */
 const onWebSocketOpen = async (ws: WebSocket, accessToken: string): Promise<void> => {
+    // Inform that connection to r/place is successful.
     logger.info('Connected to r/place!')
+
+    // Set the connection state to true (assuming `connected` is defined elsewhere).
     connected = true
+
+    // Initialize connection with access token.
     ws.send(
         JSON.stringify({
             type: 'connection_init',
@@ -106,43 +117,84 @@ const onWebSocketOpen = async (ws: WebSocket, accessToken: string): Promise<void
         })
     )
 
-    CONFIG.trackedCanvases.forEach((canvasId) => {
+    // Subscribe to each tracked canvas and initialize their timestamps.
+    CONFIG.trackedCanvases.forEach((canvasId: number) => {
         subscribeCanvas(ws, canvasId)
         canvasTimestamps[canvasId] = 0
     })
 
+    // Process the queue and canvas updates as long as the WebSocket is active.
     while (ws.readyState !== WebSocket.CLOSED) {
-        if (queue.length === 0) {
-            await new Promise((resolve) => setTimeout(resolve, 1000))
+        if (!queue.length) {
+            // Pause for a moment if the queue is empty.
+            await pause(1000)
         }
 
-        const message = queue.shift()
+        // Process the next message in the queue.
+        await processQueueMessage(ws)
+    }
+}
 
-        const { payload } = JSON.parse(message)
-        if (!payload?.data?.subscribe?.data) continue
+/**
+ * Pause the execution for a specified duration.
+ *
+ * @param duration Duration in milliseconds to pause.
+ */
+const pause = (duration: number): Promise<void> => {
+    return new Promise((resolve) => setTimeout(resolve, duration))
+}
 
-        const { __typename, name, previousTimestamp, currentTimestamp, timestamp } =
-            payload.data.subscribe.data
-        if (__typename !== 'FullFrameMessageData' && __typename !== 'DiffFrameMessageData') return
+/**
+ * Process and act on the message from the queue.
+ *
+ * @param ws The active WebSocket instance.
+ */
+const processQueueMessage = async (ws: WebSocket): Promise<void> => {
+    const message = queue.shift()
+    let payload
 
-        const canvasID = name.match(/-frame\/(\d)\//)[1]
+    // Safely parse the JSON message.
+    try {
+        payload = JSON.parse(message)?.payload
+    } catch (error) {
+        logger.error('Failed to parse the message:', error)
+        return
+    }
 
-        if (previousTimestamp && previousTimestamp !== canvasTimestamps[canvasID]) {
-            logger.error('Missing diff frame, reconnecting...')
-            connect()
-            return
-        }
-        canvasTimestamps[canvasID] = currentTimestamp ?? timestamp
+    if (!payload?.data?.subscribe?.data) return
 
-        const canvasPosition = CONFIG.canvasPositions[canvasID]
+    const { __typename, name, previousTimestamp, currentTimestamp, timestamp } =
+        payload.data.subscribe.data
 
-        if (__typename === 'FullFrameMessageData') {
-            canvas.clearRect(canvasPosition[0], canvasPosition[1], 1000, 1000)
-        }
+    if (__typename !== 'FullFrameMessageData' && __typename !== 'DiffFrameMessageData') return
 
+    // Extract the canvas ID from the name.
+    const canvasIDMatch = name.match(/-frame\/(\d)\//)
+    const canvasID = canvasIDMatch?.[1]
+    if (!canvasID) {
+        logger.error('Failed to extract canvas ID from name:', name)
+        return
+    }
+
+    if (previousTimestamp && previousTimestamp !== canvasTimestamps[canvasID]) {
+        logger.error('Missing diff frame, reconnecting...')
+        connect()
+        return
+    }
+
+    canvasTimestamps[canvasID] = currentTimestamp ?? timestamp
+    const canvasPosition = CONFIG.canvasPositions[canvasID]
+
+    if (__typename === 'FullFrameMessageData') {
+        canvas.clearRect(canvasPosition[0], canvasPosition[1], 1000, 1000)
+    }
+
+    try {
         const image = await fetch(name)
         const parsedImage = await loadImage(Buffer.from(await image.arrayBuffer()))
         canvas.drawImage(parsedImage, canvasPosition[0], canvasPosition[1])
+    } catch (error) {
+        logger.error('Failed to fetch image:', error)
     }
 }
 
@@ -231,3 +283,44 @@ export default {
     getOrderDifference,
     canvas: { main: orderCanvas, reddit: canvas },
 }
+
+/*
+
+Ahoy there, dear reader! Grab your monocle, put on your pirate hat, and steep a pot of Earl Grey, because we are embarking on an adventure to understand a rather sophisticated piece of JavaScript code! 🏴‍☠️🍵
+
+# Tea & Tales of the r/place Canvas 🎨
+
+## In A Glimpse
+
+This splendid piece of workmanship connects to the grand Reddit's r/place canvas using WebSockets, fetches various canvas frames, and even compares the grandeur of two canvases!
+
+## Ingredients
+
+Here's what we've mustered:
+
+1. **Configuration & Globals**: Essential details and settings, including dimensions, URLs, and canvas positions. Jolly good.
+2. **Utility Functions**: Ah, the backbone of our adventure. Methods that assist with everything from getting access tokens to handling canvas updates!
+
+## Highlights of Our Quest:
+
+- **getAccessToken()**: Navigates the treacherous waters of Reddit to acquire a precious access token.
+- **connect()**: Ah, the call to adventure! Attempts a rendezvous with r/place via WebSockets.
+- **onWebSocketOpen()**: A triumphant celebration of a successful connection.
+- **onWebSocketMessage()**: Engages with incoming messages and adds them to the queue for decoding.
+- **onWebSocketClose()**: Alas, all good things come to an end. But fear not! It reconnects posthaste.
+- **updateOrders()**: Updates our pirate map, ahem, I mean order canvas.
+- **getOrderDifference()**: Our spyglass! Compares two canvases and reports on discrepancies.
+
+## Treasures 🎨
+
+At the end of our adventure, we have access to a fine collection:
+
+- **connect**: For establishing a dashing connection.
+- **updateOrders**: Updates the order canvas with new, thrilling tales.
+- **getOrderDifference**: Compares the order and Reddit canvases.
+- **canvas**: Our treasures - the main order canvas and the Reddit canvas.
+
+---
+
+So, my dear shipmate, are you ready to embark on this grand journey through the r/place seas with your favourite British Tea Pirate? Hoist the sails, and off we go! 🏴‍☠️🍵🎨
+*/

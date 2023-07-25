@@ -5,4 +5,12 @@ import helmet from 'helmet'
 import logger, { requestLogger, exceptionLogger } from './logger'
 import rateLimiter from './rate-limiter'
 
-export default [cors(), bodyParser.json(), bodyParser.urlencoded({ extended: true }), helmet(), requestLogger, exceptionLogger, rateLimiter]
+export default [
+    cors(),
+    bodyParser.json(),
+    bodyParser.urlencoded({ extended: true }),
+    helmet(),
+    requestLogger,
+    exceptionLogger,
+    rateLimiter,
+]

@@ -25,7 +25,7 @@ esbuild
     })
     .then(() => {
         // Build the user scripts for the browser
-        return esbuild.build({
+        esbuild.build({
             entryPoints: ['src/userscripts/main.ts'],
             bundle: true,
             platform: 'browser',
@@ -38,7 +38,7 @@ esbuild
         })
     })
     .then(() => {
-        return esbuild.build({
+        esbuild.build({
             entryPoints: ['src/reddit/api.ts'],
             bundle: true,
             platform: 'browser',
@@ -48,7 +48,7 @@ esbuild
         })
     })
     .then(() => {
-        return esbuild.build({
+        esbuild.build({
             entryPoints: ['src/reddit/api.ts'],
             bundle: true,
             platform: 'node',

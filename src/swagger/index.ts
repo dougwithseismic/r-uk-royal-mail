@@ -17,10 +17,8 @@ const swaggerOptions = {
             contact: {
                 name: 'doug@withseismic.com',
                 url: 'https://x.withseismic.com',
-                github:'https://github.com/dougwithseismic'
-
+                github: 'https://github.com/dougwithseismic',
             },
-
         },
     },
     apis: ['./src/routes/*.ts'],
